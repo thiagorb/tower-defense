@@ -1,5 +1,7 @@
 (function () {
-    Array.prototype.map = function (f) { var nArr = new Array(); for (var i in this) { nArr.push(f(this[i])); }; return nArr };
+	var STEPS_PER_SECOND = 180;
+	
+    Array.prototype.map = function (f) { var nArr = new Array(this.length); for (var i in this) { nArr[i] = f(this[i]); }; return nArr };
 
     var canvas = document.getElementById("GameView");
     canvas.width = 800;
@@ -49,6 +51,13 @@
 			v.x = Math.round(v.x);
 			v.y = Math.round(v.y);
 			return v;
+		},
+		scalarProduct: function (a, b) {
+			return a.x * b.x + a.y * b.y;
+		},
+		project: function (a, b) {
+			var factor = Vector.scalarProduct(a, b) / Vector.scalarProduct(b, b);
+			return Vector.scale(b, factor);
 		}
 	};
 
@@ -57,12 +66,17 @@
         var dy = y1 - y2;
         return Math.sqrt(dx * dx + dy * dy);
     }
+	
+	var FieldSize = {
+		width: 20,
+		height: 15
+	};
 
     var BLOCK_SIZE = 40;
     var Field = function (width, height) {
         var cells = createMatrix(width, height, function (i, j) {
             if (j == 0 || j == height - 1) return 1;
-            if (i > 0 && i < width - 1) return 0;
+            if (i > 1 && i < width - 3) return 0;
             if (j == (height / 2 | 0)) return 0;
             return 1; 
         });
@@ -90,10 +104,10 @@
                 unvisited.splice(minIndex, 1);
                 unvisitedMap[minDist.x][minDist.y] = undefined;
                 var neighbors = []
-                if (minDist.x > 0) 
+                if (minDist.x > 0)
                     neighbors.push({ x: minDist.x - 1, y: minDist.y });
                     
-                if (minDist.x < width - 1) 
+                if (minDist.x < width - 1)
                     neighbors.push({ x: minDist.x + 1, y: minDist.y });
                     
                 if (minDist.y > 0)
@@ -103,10 +117,11 @@
                     neighbors.push({ x: minDist.x, y: minDist.y + 1 });
                 
                 neighbors.forEach(function (v) {
-                    if (!unvisitedMap[v.x][v.y] || cells[v.x][v.y]) return;
+                    if (!unvisitedMap[v.x][v.y]) return;
                     var alt = dist[minDist.x][minDist.y] + 1;
                     if (dist[v.x][v.y] === undefined || alt < dist[v.x][v.y]) {
-                        dist[v.x][v.y] = alt;
+						if (!cells[v.x][v.y])
+							dist[v.x][v.y] = alt;
                         previous[v.x][v.y] = minDist;
                     }
                 });
@@ -145,7 +160,7 @@
         };
 		
 		this.putTower = function (x, y) {
-			if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1) return;
+			if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1 || cells[x][y]) return;
 			cells[x][y] = 2;
 			var previous = aStar(this.goal);
 			if (previous[this.origin.x][this.origin.y]) {
@@ -164,62 +179,193 @@
         this.previous = aStar(this.goal);
     };
 
-    var field = new Field(20, 15);
+    var field = new Field(FieldSize.width, FieldSize.height);
     
-    var Creep = function (p) {
-		var position = Vector.copy(p);
-		var speed = { x: 0, y: 0 };
-		var deceleration = 0.00095;
-		var creepAcceleration = 0.001;
+	var CreepsManager = function (origin) {
+		var currentId = 1;
+		var creeps = [];
+		var positionMap = createMatrix(FieldSize.width, FieldSize.height, function () { return []; });
 	
-        this.render = function (gc) {
+		this.step = function () {
+			creeps.forEach(function (creep) {
+				creep.decelerate();
+			});
+			creeps.forEach(function (creep) {
+				creep.step();
+			});
+			for (var i = 0; i < creeps.length; i++) {
+				var pi = creeps[i].getPosition();
+			
+				for (var j = i + 1; j < creeps.length; j++) {
+					var pj = creeps[j].getPosition();
+					if (pi.x - 0.25 > pj.x) continue;
+					if (pi.y - 0.25 > pj.y) continue;
+					if (pj.x - 0.25 > pi.x) continue;
+					if (pj.y - 0.25 > pi.y) continue;
+					var dp = Vector.subFrom(pj, Vector.copy(pi));
+					if (Vector.norm2(dp) > 0.250 * 0.250) continue;
+					var si = creeps[i].getSpeed();
+					var sj = creeps[j].getSpeed();
+					var ds = Vector.subFrom(sj, Vector.copy(si));
+					if (Vector.scalarProduct(ds, dp) > 0) continue;
+					var projj = Vector.project(sj, Vector.copy(dp));
+					var proji = Vector.project(si, dp);
+					Vector.subFrom(proji, si);
+					Vector.subFrom(projj, sj);
+					Vector.addTo(projj, si);
+					Vector.addTo(proji, sj);
+				}
+			}
+			for (var i = creeps.length - 1; i >= 0; i--) {
+				creeps[i].move();
+				if (creeps[i].foundGoal()) creeps.splice(i, 1);
+			}
+		};
+		
+		this.summon = function () {
+			var creep = new Creep(currentId++, origin);
+			creeps.push(creep);
+		};
+		
+		this.addForeigner = function (foreigner) {
+			creeps.push(foreigner);
+		};
+		
+		this.render = function (gc) {
 			gc.save();
 			gc.scale(BLOCK_SIZE, BLOCK_SIZE);
 			gc.translate(0.5, 0.5);
             gc.fillStyle = "#0F0";
+            creeps.forEach(function (creep) {
+				creep.render(gc);
+			});
+			gc.restore();
+		};
+	};
+	
+    var Creep = function (id, p) {
+		var creepAcceleration = 0.06 / STEPS_PER_SECOND;
+		var deceleration = creepAcceleration * 0.95;
+		var position = Vector.copy(p);
+		var speed = { x: 0, y: 0 };
+		var currentCell = Vector.round(Vector.copy(position));
+	
+        this.render = function (gc) {
             gc.beginPath();
 			gc.arc(position.x, position.y, 0.125, 0, Math.PI * 2);
             gc.fill();
-			gc.restore();
         };
         
-        this.step = function () {
+        this.decelerate = function () {
 			var speedNorm = Vector.norm(speed);
 			if (speedNorm < deceleration) {
 				speed = { x: 0, y: 0 };
 			} else {
 				Vector.scale(speed, (speedNorm - deceleration) / speedNorm);
 			}
-			var currentCell = Vector.round(Vector.copy(position));
-			
-            var next = field.previous[currentCell.x][currentCell.y];
-            if (next) {
-				var d = Vector.copy(next);
-				Vector.subFrom(position, d);
-				Vector.scale(d, creepAcceleration / Vector.norm(d));
-				Vector.addTo(d, speed);
+        };
+		
+		this.step = function () {
+			if (currentCell.x >= 0 && currentCell.x < FieldSize.width && currentCell.y >= 0 && currentCell.y < FieldSize.height) {
+				var next = field.previous[currentCell.x][currentCell.y];
+				if (next) {
+					var d = Vector.copy(next);
+					Vector.subFrom(position, d);
+					Vector.scale(d, creepAcceleration / Vector.norm(d));
+					Vector.addTo(d, speed);
+				}
 			}
-			
-			speedNorm = Vector.norm(speed);
+		};
+		
+		this.move = function () {
+			var speedNorm = Vector.norm(speed);
 			if (!speedNorm) return;
-			var nextCell = Vector.round(Vector.addTo(Vector.scale(Vector.copy(speed), (speedNorm + 0.125) / speedNorm), Vector.copy(position)));
-			if (!Vector.equals(currentCell, nextCell) && !field.creepCanWalk(nextCell.x, nextCell.y)) {
+			var nextCell = Vector.round(
+				Vector.addTo(
+					position,
+					Vector.scale(
+						Vector.copy(speed), 
+						(speedNorm + 0.125) / speedNorm
+					)
+				)
+			);
+			var nextCellCopy = Vector.copy(nextCell);
+			if (!Vector.equals(nextCell, currentCell) && !field.creepCanWalk(nextCell.x, nextCell.y)) {
 				Vector.subFrom(currentCell, nextCell);
 				if (nextCell.x) speed.x = -speed.x;
 				if (nextCell.y) speed.y = -speed.y;
 			}
-			
+			currentCell = nextCellCopy;
 			Vector.addTo(speed, position);
-        };
+		};
+		
+		this.foundGoal = function () {
+			return Vector.equals(currentCell, field.goal);
+		};
+		
+		this.getPosition = function () {
+			return position;
+		};
+		
+		this.getSpeed = function () {
+			return speed;
+		};
+		
+		this.getId = function () {
+			return this.id;
+		};
     };
 	
+	var Arrows = {
+		left: 37,
+		up: 38,
+		right: 39,
+		down: 40
+	};
+	var ballGradient;
+	var ball = new Creep(0, { x: 10, y: 10 });
+	(function (ball) {
+		var acceleration = 0.12 / STEPS_PER_SECOND;
+		var radius = 0.125;
+		ball.step = function () {
+			if (frameController.isKeyPressed(Arrows.left))
+				ball.getSpeed().x -= acceleration;
+				
+			if (frameController.isKeyPressed(Arrows.right))
+				ball.getSpeed().x += acceleration;
+				
+			if (frameController.isKeyPressed(Arrows.up))
+				ball.getSpeed().y -= acceleration;
+				
+			if (frameController.isKeyPressed(Arrows.down))
+				ball.getSpeed().y += acceleration;
+		};
+		
+		ball.render = function (gc) {
+            gc.save();
+            gc.fillStyle = ballGradient;
+            gc.translate(ball.getPosition().x, ball.getPosition().y);
+            gc.scale(radius, radius, 1);
+            gc.beginPath();
+			gc.arc(0, 0, 1, 0, Math.PI * 2);
+			gc.fill();
+			
+            gc.restore();
+		};
+	})(ball);
+	
+	var creepsManager = new CreepsManager(field.origin);
+	var creeps = [];
 	setInterval(function () {
-		var creep = new Creep(field.origin);
-		frameController.addActionObject(creep);
-		frameController.addRenderObject(creep);
-	}, 3000);
+		creepsManager.summon();
+	}, 1000);
 	
     frameController.addRenderObject(field);
+	
+	
+	creepsManager.addForeigner(ball);
+	frameController.addActionObject(creepsManager);
+	frameController.addRenderObject(creepsManager);
 	
 	frameController.addActionObject(new function () {
 		this.step = function () {
@@ -228,6 +374,12 @@
 			field.putTower((mousePosition.x / BLOCK_SIZE) | 0, (mousePosition.y / BLOCK_SIZE) | 0);
 		};
 	});
+	
+	frameController.renderSetup = function (gc) {
+		ballGradient = gc.createRadialGradient(-0.2, -0.2, 0.2, 0, 0, 1);
+		ballGradient.addColorStop(0,"red");
+		ballGradient.addColorStop(1,"#700");
+	};
 
-    frameController.start(100);
+    frameController.start(STEPS_PER_SECOND, 60);
 })();

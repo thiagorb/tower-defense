@@ -77,5 +77,5 @@
 	
 	frameController.addRenderObject(ball);
 	frameController.addActionObject(ball);
-	frameController.start(120);
+	frameController.start(120, 30);
 })();
