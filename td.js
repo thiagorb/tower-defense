@@ -1,7 +1,15 @@
 (function () {
 	var STEPS_PER_SECOND = 180;
 	
-    Array.prototype.map = function (f) { var nArr = new Array(this.length); for (var i in this) { nArr[i] = f(this[i]); }; return nArr };
+	if (!Array.prototype.map) {
+	    Array.prototype.map = function (f) {
+	    	var nArr = new Array(this.length); 
+	    	for (var i in this) {
+				nArr[i] = f(this[i]); 
+			} 
+			return nArr;
+		};
+	}
 
     var canvas = document.getElementById("GameView");
     canvas.width = 800;
@@ -17,54 +25,6 @@
             }
         }
         return matrix;
-    }
-	
-	var Vector = {
-		norm: function (v) {
-			return Math.sqrt(Vector.norm2(v));
-		},
-		norm2: function (v) {
-			return v.x * v.x + v.y * v.y;
-		},
-		scale: function (v, factor) {
-			v.x *= factor;
-			v.y *= factor;
-			return v;
-		},
-		addTo: function (a, b) {
-			b.x += a.x;
-			b.y += a.y;
-			return b;
-		},
-		subFrom: function (a, b) {
-			b.x -= a.x;
-			b.y -= a.y;
-			return b;
-		},
-		copy: function (v) {
-			return { x: v.x, y: v.y };
-		},
-		equals: function (a, b) {
-			return a.x == b.x && a.y == b.y;
-		},
-		round: function (v) {
-			v.x = Math.round(v.x);
-			v.y = Math.round(v.y);
-			return v;
-		},
-		scalarProduct: function (a, b) {
-			return a.x * b.x + a.y * b.y;
-		},
-		project: function (a, b) {
-			var factor = Vector.scalarProduct(a, b) / Vector.scalarProduct(b, b);
-			return Vector.scale(b, factor);
-		}
-	};
-
-    function distance(x1, y1, x2, y2) {
-        var dx = x1 - x2;
-        var dy = y1 - y2;
-        return Math.sqrt(dx * dx + dy * dy);
     }
 	
 	var FieldSize = {
@@ -103,7 +63,7 @@
                 if (!minDist) break;
                 unvisited.splice(minIndex, 1);
                 unvisitedMap[minDist.x][minDist.y] = undefined;
-                var neighbors = []
+                var neighbors = [];
                 if (minDist.x > 0)
                     neighbors.push({ x: minDist.x - 1, y: minDist.y });
                     
@@ -127,7 +87,7 @@
                 });
             }
             return previous;
-        }
+        };
 		
 		var renderBackground = function () {
 			var image = document.createElement("canvas");
@@ -169,6 +129,7 @@
 			} else {
 				cells[x][y] = 0;
 			}
+			frameController.addActionObject(new Tower({ x: x, y: y }));
 		};
 		
 		this.creepCanWalk = function (x, y) {
@@ -184,7 +145,16 @@
 	var CreepsManager = function (origin) {
 		var currentId = 1;
 		var creeps = [];
-		var positionMap = createMatrix(FieldSize.width, FieldSize.height, function () { return []; });
+		
+		this.getCreepAtDistance = function (point, distance) {
+			var found = null;
+			creeps.some(function (creep) {
+				var d = Vector.subFrom(point, Vector.copy(creep.getPosition()));
+				if (Vector.norm2(d) <= distance * distance)
+					return found = creep;
+			});
+			return found;
+		};
 	
 		this.step = function () {
 			creeps.forEach(function (creep) {
@@ -218,7 +188,7 @@
 			}
 			for (var i = creeps.length - 1; i >= 0; i--) {
 				creeps[i].move();
-				if (creeps[i].foundGoal()) creeps.splice(i, 1);
+				if (creeps[i].foundGoal() || creeps[i].isDead()) creeps.splice(i, 1);
 			}
 		};
 		
@@ -249,6 +219,7 @@
 		var position = Vector.copy(p);
 		var speed = { x: 0, y: 0 };
 		var currentCell = Vector.round(Vector.copy(position));
+		var life = 5;
 	
         this.render = function (gc) {
             gc.beginPath();
@@ -314,6 +285,70 @@
 		this.getId = function () {
 			return this.id;
 		};
+		
+		this.inflictDamage = function (damage) {
+			life -= damage;
+			Vector.scale(speed, 0.9);
+		};
+		
+		this.isDead = function () {
+			return life <= 0;
+		};
+    };
+    
+    var BulletsManager = function () {
+    	var bullets = [];
+    	
+    	this.createBullet = function (position, speed, time) {
+    		bullets.push({ position: position, speed: speed, time: time });
+    	};
+    	
+    	this.step = function () {
+    		for (var i = bullets.length - 1; i >= 0; i--) {
+				var bullet = bullets[i];
+				var creep = creepsManager.getCreepAtDistance(bullet.position, 0.125);
+				if (creep)
+					creep.inflictDamage(1);
+				if (!bullet.time-- || creep)
+					bullets.splice(i, 1);
+				else
+					Vector.addTo(bullet.speed, bullet.position);
+    		}
+    	};
+    	
+    	this.render = function (gc) {
+			gc.save();
+			gc.scale(BLOCK_SIZE, BLOCK_SIZE);
+			gc.translate(0.5, 0.5);
+            gc.fillStyle = "white";
+            bullets.forEach(function (bullet) {
+				gc.fillRect(bullet.position.x, bullet.position.y, 0.025, 0.025);
+			});
+			gc.restore();
+    	};
+    };
+    
+    var Tower = function (position) {
+    	var BULLET_RANGE = 3;
+    	var BULLET_SPEED = 7 / STEPS_PER_SECOND;
+    	var BULLET_LIFE = BULLET_RANGE / BULLET_SPEED | 0;
+    	var fireDelay = 0.5 * STEPS_PER_SECOND;
+    	var fireCounter = 0;
+    	
+    	this.step = function () {
+    		if (!fireCounter) {
+    			var target = creepsManager.getCreepAtDistance(position, BULLET_RANGE);
+    			if (!target) return;
+    			var distance = Vector.subFrom(position, Vector.copy(target.getPosition()));
+    			var offset = Vector.scale(Vector.copy(target.getSpeed()), Vector.norm(distance) / BULLET_SPEED);
+				Vector.addTo(offset, distance);
+    			Vector.scale(distance, BULLET_SPEED / Vector.norm(distance));
+    			bulletsManager.createBullet(Vector.copy(position), distance, BULLET_LIFE);
+    			fireCounter = fireDelay;
+    		} else {
+    			fireCounter--;
+    		}
+    	};
     };
 	
 	var Arrows = {
@@ -322,7 +357,7 @@
 		right: 39,
 		down: 40
 	};
-	var ballGradient;
+	var ballGradient = null;
 	var ball = new Creep(0, { x: 10, y: 10 });
 	(function (ball) {
 		var acceleration = 0.12 / STEPS_PER_SECOND;
@@ -349,23 +384,27 @@
             gc.beginPath();
 			gc.arc(0, 0, 1, 0, Math.PI * 2);
 			gc.fill();
-			
             gc.restore();
 		};
+		
+		ball.isDead = function () {
+			return false;
+		};
 	})(ball);
+
+    frameController.addRenderObject(field);
 	
 	var creepsManager = new CreepsManager(field.origin);
-	var creeps = [];
 	setInterval(function () {
 		creepsManager.summon();
 	}, 1000);
-	
-    frameController.addRenderObject(field);
-	
-	
 	creepsManager.addForeigner(ball);
 	frameController.addActionObject(creepsManager);
 	frameController.addRenderObject(creepsManager);
+	
+	var bulletsManager = new BulletsManager();
+	frameController.addActionObject(bulletsManager);
+	frameController.addRenderObject(bulletsManager);
 	
 	frameController.addActionObject(new function () {
 		this.step = function () {
