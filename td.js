@@ -86,6 +86,17 @@
                     }
                 });
             }
+            for (var i = 0; i < width; i++) {
+            	for (var j = 0; j < height; j++) {
+            		var p = previous[i][j];
+            		if (!p) continue;
+            		var d = Vector.subFrom(p, { x: i, y: j});
+            		while (previous[p.x][p.y] && Vector.equals(d, Vector.subFrom(previous[p.x][p.y], Vector.copy(p)))) {
+            			p = previous[p.x][p.y];
+            		}
+            		previous[i][j] = p;
+            	}
+            }
             return previous;
         };
 		
@@ -120,16 +131,17 @@
         };
 		
 		this.putTower = function (x, y) {
-			if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1 || cells[x][y]) return;
+			if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1 || cells[x][y]) return false;
 			cells[x][y] = 2;
 			var previous = aStar(this.goal);
 			if (previous[this.origin.x][this.origin.y]) {
 				this.previous = previous;
 				backgroundImage = renderBackground();
+				return true;
 			} else {
 				cells[x][y] = 0;
+				return false;
 			}
-			frameController.addActionObject(new Tower({ x: x, y: y }));
 		};
 		
 		this.creepCanWalk = function (x, y) {
@@ -193,7 +205,7 @@
 		};
 		
 		this.summon = function () {
-			var creep = new Creep(currentId++, origin);
+			var creep = new Creep(currentId++, origin, { x: 1 / STEPS_PER_SECOND, y: (2 - Math.random() * 4) / STEPS_PER_SECOND });
 			creeps.push(creep);
 		};
 		
@@ -213,11 +225,11 @@
 		};
 	};
 	
-    var Creep = function (id, p) {
+    var Creep = function (id, p, s) {
 		var creepAcceleration = 0.06 / STEPS_PER_SECOND;
 		var deceleration = creepAcceleration * 0.95;
 		var position = Vector.copy(p);
-		var speed = { x: 0, y: 0 };
+		var speed = s;
 		var currentCell = Vector.round(Vector.copy(position));
 		var life = 5;
 	
@@ -288,7 +300,6 @@
 		
 		this.inflictDamage = function (damage) {
 			life -= damage;
-			Vector.scale(speed, 0.9);
 		};
 		
 		this.isDead = function () {
@@ -299,8 +310,8 @@
     var BulletsManager = function () {
     	var bullets = [];
     	
-    	this.createBullet = function (position, speed, time) {
-    		bullets.push({ position: position, speed: speed, time: time });
+    	this.createBullet = function (position, speed, duration) {
+    		bullets.push({ position: position, speed: speed, duration: duration });
     	};
     	
     	this.step = function () {
@@ -309,7 +320,7 @@
 				var creep = creepsManager.getCreepAtDistance(bullet.position, 0.125);
 				if (creep)
 					creep.inflictDamage(1);
-				if (!bullet.time-- || creep)
+				if (!bullet.duration-- || creep)
 					bullets.splice(i, 1);
 				else
 					Vector.addTo(bullet.speed, bullet.position);
@@ -328,11 +339,11 @@
     	};
     };
     
-    var Tower = function (position) {
+    var Tower = function (position, createBullet) {
     	var BULLET_RANGE = 3;
     	var BULLET_SPEED = 7 / STEPS_PER_SECOND;
-    	var BULLET_LIFE = BULLET_RANGE / BULLET_SPEED | 0;
-    	var fireDelay = 0.5 * STEPS_PER_SECOND;
+    	var BULLET_DURATION = BULLET_RANGE / BULLET_SPEED | 0;
+    	var fireDelay = 0.2 * STEPS_PER_SECOND;
     	var fireCounter = 0;
     	
     	this.step = function () {
@@ -343,7 +354,7 @@
     			var offset = Vector.scale(Vector.copy(target.getSpeed()), Vector.norm(distance) / BULLET_SPEED);
 				Vector.addTo(offset, distance);
     			Vector.scale(distance, BULLET_SPEED / Vector.norm(distance));
-    			bulletsManager.createBullet(Vector.copy(position), distance, BULLET_LIFE);
+    			createBullet(Vector.copy(position), distance, BULLET_DURATION);
     			fireCounter = fireDelay;
     		} else {
     			fireCounter--;
@@ -358,7 +369,7 @@
 		down: 40
 	};
 	var ballGradient = null;
-	var ball = new Creep(0, { x: 10, y: 10 });
+	var ball = new Creep(0, { x: 10, y: 10 }, { x: 0, y: 0 });
 	(function (ball) {
 		var acceleration = 0.12 / STEPS_PER_SECOND;
 		var radius = 0.125;
@@ -397,7 +408,7 @@
 	var creepsManager = new CreepsManager(field.origin);
 	setInterval(function () {
 		creepsManager.summon();
-	}, 1000);
+	}, 350);
 	creepsManager.addForeigner(ball);
 	frameController.addActionObject(creepsManager);
 	frameController.addRenderObject(creepsManager);
@@ -410,7 +421,11 @@
 		this.step = function () {
 			if (!frameController.isMousePressed(0)) return;
 			var mousePosition = frameController.getMousePosition();
-			field.putTower((mousePosition.x / BLOCK_SIZE) | 0, (mousePosition.y / BLOCK_SIZE) | 0);
+			var x = (mousePosition.x / BLOCK_SIZE) | 0;
+			var y = (mousePosition.y / BLOCK_SIZE) | 0;
+			if (field.putTower(x, y)) {
+				frameController.addActionObject(new Tower({ x: x, y: y }, bulletsManager.createBullet));
+			}
 		};
 	});
 	
