@@ -1,6 +1,23 @@
 <html>
 	<body>
+		<style>
+			.button {
+				background-color: red; 
+				color: white; 
+				padding: 5px;
+				display: inline;
+				vertical-align: top;
+				font-family: arial;
+			}
+			
+			.button:hover {
+				background-color: blue;
+				cursor: pointer;
+			}
+		</style>
+		
 		<canvas id="GameView" style="background-color: black"></canvas>
+		<div class="button" id="btnSendCreeps">Send creeps!</div>
 		<script src="engine.js"></script>
 		<script src="vector.js"></script>
 		<script src="td.js"></script>
