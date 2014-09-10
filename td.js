@@ -10,11 +10,6 @@
 			return nArr;
 		};
 	}
-
-    var canvas = document.getElementById("GameView");
-    canvas.width = 800;
-    canvas.height = 600;
-    var frameController = new FrameController(canvas);
     
     function createMatrix(cols, rows, init) {
         var matrix = new Array(cols);
@@ -26,13 +21,18 @@
         }
         return matrix;
     }
-	
-	var FieldSize = {
-		width: 20,
-		height: 15
-	};
 
-    var BLOCK_SIZE = 40;
+    var canvas = document.getElementById("GameView");
+    canvas.width = 800;
+    canvas.height = 600;
+	
+    var frameController = new FrameController(canvas);
+	var FieldSize = {
+		width: 12,
+		height: 9
+	};
+    var BLOCK_SIZE = 60;
+	var CREEP_RADIUS = 0.09;
     var Field = function (width, height) {
         var cells = createMatrix(width, height, function (i, j) {
             if (j == 0 || j == height - 1) return 1;
@@ -86,18 +86,16 @@
                     }
                 });
             }
-            for (var i = 0; i < width; i++) {
-            	for (var j = 0; j < height; j++) {
-            		var p = previous[i][j];
-            		if (!p) continue;
-            		var d = Vector.subFrom(p, { x: i, y: j});
-            		while (previous[p.x][p.y] && Vector.equals(d, Vector.subFrom(previous[p.x][p.y], Vector.copy(p)))) {
-            			p = previous[p.x][p.y];
-            		}
-            		previous[i][j] = p;
-            	}
-            }
-            return previous;
+			var optmized = createMatrix(width, height, function (i, j) {
+				var p = previous[i][j];
+				if (!p) return;
+				var d = Vector.subFrom(p, { x: i, y: j});
+				while (previous[p.x][p.y] && Vector.equals(d, Vector.subFrom(previous[p.x][p.y], Vector.copy(p)))) {
+					p = previous[p.x][p.y];
+				}
+				return p;
+			});
+            return optmized;
         };
 		
 		var renderBackground = function () {
@@ -180,12 +178,12 @@
 			
 				for (var j = i + 1; j < creeps.length; j++) {
 					var pj = creeps[j].getPosition();
-					if (pi.x - 0.25 > pj.x) continue;
-					if (pi.y - 0.25 > pj.y) continue;
-					if (pj.x - 0.25 > pi.x) continue;
-					if (pj.y - 0.25 > pi.y) continue;
+					if (pi.x - CREEP_RADIUS * 2 > pj.x) continue;
+					if (pi.y - CREEP_RADIUS * 2 > pj.y) continue;
+					if (pj.x - CREEP_RADIUS * 2 > pi.x) continue;
+					if (pj.y - CREEP_RADIUS * 2 > pi.y) continue;
 					var dp = Vector.subFrom(pj, Vector.copy(pi));
-					if (Vector.norm2(dp) > 0.250 * 0.250) continue;
+					if (Vector.norm2(dp) > CREEP_RADIUS * 2 * CREEP_RADIUS * 2) continue;
 					var si = creeps[i].getSpeed();
 					var sj = creeps[j].getSpeed();
 					var ds = Vector.subFrom(sj, Vector.copy(si));
@@ -205,7 +203,7 @@
 		};
 		
 		this.summon = function () {
-			var creep = new Creep(currentId++, origin, { x: 1 / STEPS_PER_SECOND, y: (2 - Math.random() * 4) / STEPS_PER_SECOND });
+			var creep = new Creep(currentId++, origin, { x: 1 / STEPS_PER_SECOND, y: (0.5 - Math.random() * 1) / STEPS_PER_SECOND });
 			creeps.push(creep);
 		};
 		
@@ -226,16 +224,17 @@
 	};
 	
     var Creep = function (id, p, s) {
-		var creepAcceleration = 0.06 / STEPS_PER_SECOND;
-		var deceleration = creepAcceleration * 0.95;
+		var creepAcceleration = 0.01 / STEPS_PER_SECOND;
+		var deceleration = creepAcceleration * 0.2;
+		var maxSpeed = 0.8 / STEPS_PER_SECOND;
 		var position = Vector.copy(p);
 		var speed = s;
 		var currentCell = Vector.round(Vector.copy(position));
-		var life = 5;
+		var life = 20;
 	
         this.render = function (gc) {
             gc.beginPath();
-			gc.arc(position.x, position.y, 0.125, 0, Math.PI * 2);
+			gc.arc(position.x, position.y, CREEP_RADIUS, 0, Math.PI * 2);
             gc.fill();
         };
         
@@ -251,7 +250,8 @@
 		this.step = function () {
 			if (currentCell.x >= 0 && currentCell.x < FieldSize.width && currentCell.y >= 0 && currentCell.y < FieldSize.height) {
 				var next = field.previous[currentCell.x][currentCell.y];
-				if (next) {
+				var speedNorm2 = Vector.norm2(speed);
+				if (next && speedNorm2 < maxSpeed * maxSpeed) {
 					var d = Vector.copy(next);
 					Vector.subFrom(position, d);
 					Vector.scale(d, creepAcceleration / Vector.norm(d));
@@ -268,7 +268,7 @@
 					position,
 					Vector.scale(
 						Vector.copy(speed), 
-						(speedNorm + 0.125) / speedNorm
+						(speedNorm + CREEP_RADIUS) / speedNorm
 					)
 				)
 			);
@@ -317,7 +317,7 @@
     	this.step = function () {
     		for (var i = bullets.length - 1; i >= 0; i--) {
 				var bullet = bullets[i];
-				var creep = creepsManager.getCreepAtDistance(bullet.position, 0.125);
+				var creep = creepsManager.getCreepAtDistance(bullet.position, CREEP_RADIUS);
 				if (creep)
 					creep.inflictDamage(1);
 				if (!bullet.duration-- || creep)
@@ -372,7 +372,6 @@
 	var ball = new Creep(0, { x: 10, y: 10 }, { x: 0, y: 0 });
 	(function (ball) {
 		var acceleration = 0.12 / STEPS_PER_SECOND;
-		var radius = 0.125;
 		ball.step = function () {
 			if (frameController.isKeyPressed(Arrows.left))
 				ball.getSpeed().x -= acceleration;
@@ -391,7 +390,7 @@
             gc.save();
             gc.fillStyle = ballGradient;
             gc.translate(ball.getPosition().x, ball.getPosition().y);
-            gc.scale(radius, radius, 1);
+            gc.scale(CREEP_RADIUS, CREEP_RADIUS, 1);
             gc.beginPath();
 			gc.arc(0, 0, 1, 0, Math.PI * 2);
 			gc.fill();
@@ -426,6 +425,19 @@
 			if (field.putTower(x, y)) {
 				frameController.addActionObject(new Tower({ x: x, y: y }, bulletsManager.createBullet));
 			}
+		};
+	});
+	
+	frameController.addRenderObject(new function () {
+		this.render = function (gc) {
+			var mousePosition = frameController.getMousePosition();
+			if (!mousePosition) return;
+			var x = (mousePosition.x / BLOCK_SIZE) | 0;
+			var y = (mousePosition.y / BLOCK_SIZE) | 0;
+			if (x < 0 || y < 0 || x >= FieldSize.width - 1 || y >= FieldSize.height - 1) return;
+			var p = field.previous[x][y];
+			if (!p) return;
+			gc.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
 		};
 	});
 	
