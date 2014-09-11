@@ -28,7 +28,7 @@ function FrameController(canvas) {
 	};
 	
 	var mouseMove = function (e) {
-		mousePosition = { x: e.x, y: e.y };
+		mousePosition = { x: e.clientX, y: e.clientY };
 	};
 	
 	var mouseDown = function (e) {
