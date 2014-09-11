@@ -435,9 +435,9 @@
 	
 	var btnNewGame = document.getElementById("btnNewGame");
 	btnNewGame.addEventListener("click", function () {
-		document.getElementById("GameMenu").style = "opacity: 0; ";
+		document.getElementById("GameMenu").style.opacity = 0;
 		setTimeout(function () {
-			document.getElementById("GameMenu").style = "display: none; ";
+			document.getElementById("GameMenu").style.display = "none";
 		}, 2000);
 		game = new Game();
 	});
