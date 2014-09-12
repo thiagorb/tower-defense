@@ -18,10 +18,12 @@
     var canvas = document.getElementById("GameView");
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
+    
+    var startLevel = 2;
 
     var Game = function() {
         var score = 0;
-        var money = 200;
+        var money = 200 + startLevel * 150;
         var lives = 2;
         var frameController = new FrameController(canvas, STEPS_PER_SECOND, 60);
         var FieldSize = {
@@ -230,7 +232,7 @@
         var CreepsManager = function(origin) {
             var creeps = [];
             var summoning = false;
-            var level = 0;
+            var level = startLevel;
             var creepsToSummon = 30;
             var summonCounter = 0;
             var summonDelay = STEPS_PER_SECOND / 2;
@@ -354,7 +356,7 @@
             var position = Vector.copy(p);
             var speed = s;
             var currentCell = Vector.round(Vector.copy(position));
-            var life = 5 + 2 * level * level;
+            var life = 1 + 1 * level * level;
 
             // Renders the creep.
             this.render = function(gc) {
@@ -485,7 +487,7 @@
             var BULLET_RANGE = 3;
             var BULLET_SPEED = 7 / STEPS_PER_SECOND;
             var BULLET_DURATION = BULLET_RANGE / BULLET_SPEED | 0;
-            var fireDelay = 0.2 * STEPS_PER_SECOND;
+            var fireDelay = 1 * STEPS_PER_SECOND;
             var fireCounter = 0;
 
             // Tries to find a target, aim and shoot.
@@ -522,7 +524,7 @@
                     if (money < 45)
                         continue;
                     if (field.putTower(p.x, p.y)) {
-                        frameController.addActionObject(new Tower(p, bulletsManager.createBullet));
+                        frameController.addActionObject(new Tower(Vector.addTo(p, { x: 0.5, y: 0.5 }), bulletsManager.createBullet));
                         money -= 45;
                     }
                 }
