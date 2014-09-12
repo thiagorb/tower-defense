@@ -78,7 +78,7 @@ function FrameController(canvas, sps, fps) {
         document.addEventListener("keydown", onKeyDown, false);
         document.addEventListener("keyup", onKeyUp, false);
         document.addEventListener("mousedown", mouseClick, false);
-        document.addEventListener("touchdown", mouseClick, false);
+        document.addEventListener("touchstart", mouseClick, false);
         setInterval(gameLoop, 1000 / sps);
     };
     
