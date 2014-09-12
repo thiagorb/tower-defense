@@ -13,6 +13,7 @@ function FrameController(canvas, sps, fps) {
     var mouseClicks = [];
     var stepsPerFrame = sps / fps | 0;
     var stepsCounter = 0;
+    var gameLoopId = null;
 
     // Invokes the step method of every action object, and then, renders if it is time.
     var gameLoop = function () {
@@ -42,7 +43,8 @@ function FrameController(canvas, sps, fps) {
 
     // Handles the mouse button press event.
     var mouseClick = function (e) {
-        mouseClicks.push({ x: e.clientX, y: e.clientY });
+        var rect = canvas.getBoundingClientRect();
+        mouseClicks.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         e.preventDefault();
     };
 
@@ -79,11 +81,14 @@ function FrameController(canvas, sps, fps) {
         document.addEventListener("keydown", onKeyDown, false);
         document.addEventListener("keyup", onKeyUp, false);
         canvas.addEventListener("click", mouseClick, false);
-        setInterval(gameLoop, 1000 / sps);
+        this.stop();
+        gameLoopId = setInterval(gameLoop, 1000 / sps);
     };
     
     // Interrupts the game loop.
     this.stop = function () {
-        clearInterval(gameLoop);
+        if (!gameLoopId) return;
+        clearInterval(gameLoopId);
+        gameLoopId = null;
     };
 }
