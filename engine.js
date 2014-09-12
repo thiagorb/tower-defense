@@ -10,8 +10,7 @@ function FrameController(canvas, sps, fps) {
     var renderObjects = [];
     var graphicsContext = canvas.getContext("2d");
     var keyMap = new Array(255);
-    var mouseMap = new Array(3);
-    var mousePosition = undefined;
+    var mouseClicks = [];
     var stepsPerFrame = sps / fps | 0;
     var stepsCounter = 0;
 
@@ -41,19 +40,10 @@ function FrameController(canvas, sps, fps) {
         keyMap[e.keyCode] = false;
     };
 
-    // Handles the mouve move event.
-    var mouseMove = function (e) {
-        mousePosition = { x: e.clientX, y: e.clientY };
-    };
-
     // Handles the mouse button press event.
-    var mouseDown = function (e) {
-        mouseMap[e.button] = true;
-    };
-
-    // Handles the mouse button release event.
-    var mouseUp = function (e) {
-        mouseMap[e.button] = false;
+    var mouseClick = function (e) {
+        mouseClicks.push({ x: e.layerX, y: e.layerY });
+        e.preventDefault();
     };
 
     // Adds an object to the action objects collection.
@@ -72,13 +62,8 @@ function FrameController(canvas, sps, fps) {
     };
 
     // Returns true if the mouse button with the given button code is pressed.
-    this.isMousePressed = function (buttonCode) {
-        return mouseMap[buttonCode];
-    };
-
-    // Returns the mouse position.
-    this.getMousePosition = function () {
-        return mousePosition;
+    this.readMouseClick = function () {
+        return mouseClicks.shift();
     };
 
     // This method is invoked before rendering the first frame, 
@@ -93,9 +78,7 @@ function FrameController(canvas, sps, fps) {
         this.renderSetup(graphicsContext);
         document.addEventListener("keydown", onKeyDown, false);
         document.addEventListener("keyup", onKeyUp, false);
-        document.addEventListener("mousedown", mouseDown, false);
-        document.addEventListener("mouseup", mouseUp, false);
-        document.addEventListener("mousemove", mouseMove, false);
+        canvas.addEventListener("click", mouseClick, false);
         setInterval(gameLoop, 1000 / sps);
     };
     

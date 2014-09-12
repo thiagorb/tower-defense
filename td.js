@@ -483,17 +483,19 @@
 
         frameController.addActionObject(new function() {
             this.step = function() {
-                if (!frameController.isMousePressed(0) || money < 45)
-                    return;
-                var mousePosition = frameController.getMousePosition();
-                var x = (mousePosition.x / BLOCK_SIZE) | 0;
-                var y = (mousePosition.y / BLOCK_SIZE) | 0;
-                if (field.putTower(x, y)) {
-                    frameController.addActionObject(new Tower({
-                        x : x,
-                        y : y
-                    }, bulletsManager.createBullet));
-                    money -= 45;
+                var click;
+                while (click = frameController.readMouseClick()) {
+                    if (money < 45)
+                        continue;
+                    var x = (click.x / BLOCK_SIZE) | 0;
+                    var y = (click.y / BLOCK_SIZE) | 0;
+                    if (field.putTower(x, y)) {
+                        frameController.addActionObject(new Tower({
+                            x : x,
+                            y : y
+                        }, bulletsManager.createBullet));
+                        money -= 45;
+                    }
                 }
             };
         });
@@ -520,11 +522,13 @@
     });
     
     var btnNewGame = document.getElementById("btnNewGame");
-    btnNewGame.addEventListener("click", function () {
+    btnNewGame.addEventListener("click", function (e) {
+        e.preventDefault();
         document.getElementById("GameMenu").style.opacity = 0;
         setTimeout(function () {
             document.getElementById("GameMenu").style.display = "none";
         }, 2000);
         game = new Game();
+        return false;
     });
 })();

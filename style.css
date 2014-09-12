@@ -9,7 +9,7 @@
 }
 
 .button:hover {
-	background-color: blue;
+	background-color: #f99;
 	cursor: pointer;
 }
 
@@ -22,17 +22,14 @@ canvas {
 	background-color: black;
 	z-index: -1;
 	left: 0px;
-	top: 0px;
+	top: 30px;
 	width: 800px;
-	height: 600px;
+	height: 570px;
 }
 
 #GameOverlay {
-	position: absolute;
-	left: 0px;
-	top: 0px;
 	width: 800px;
-	height: 600px;
+	height: 30px;
 }
 
 #GameMenu {
