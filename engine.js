@@ -22,7 +22,6 @@ function FrameController(canvas, sps, fps) {
         });
         if (!stepsCounter) {
             stepsCounter = stepsPerFrame;
-            graphicsContext.clearRect(0, 0, canvas.width, canvas.height);
             renderObjects.forEach(function (object) {
                 object.render(graphicsContext);
             });
