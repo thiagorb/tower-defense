@@ -43,6 +43,7 @@ function FrameController(canvas, sps, fps) {
     // Handles the mouse button press event.
     var mouseClick = function (e) {
         mouseClicks.push({ x: e.clientX, y: e.clientY });
+        e.preventDefault();
     };
 
     // Adds an object to the action objects collection.
