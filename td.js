@@ -25,14 +25,15 @@
         var lives = 2;
         var frameController = new FrameController(canvas, STEPS_PER_SECOND, 60);
         var FieldSize = {
-            width : 19,
-            height : 11
+            width : 35,
+            height : 23
         };
-        var BLOCK_SIZE = 50;
+        var BLOCK_SIZE = 25;
         var CREEP_RADIUS = 0.09;
         var fieldOffset = { x: -BLOCK_SIZE, y: 0 };
         var overListeners = [];
         var game = this;
+        var mousePosition;
 
         // Represents the field where the game happens.
         var Field = function(width, height) {
@@ -169,25 +170,47 @@
 
             // Checks if the position can be occupied, and if so mark it as occupied.
             this.putTower = function(x, y) {
-                if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1
-                        || cells[x][y])
+                if (x <= 0 || y <= 0 || x >= width - 2 || y >= height - 2)
                     return false;
-                cells[x][y] = 2;
+                
+                function reduceNeighbors(f) {
+                    var r;
+                    for (var i = 0; i < 2; i++) {
+                        for (var j = 0; j < 2; j++) {
+                            r = f(x + i, y + j);
+                            if (r && r.end) return r.value;
+                        }
+                    }
+                    return r && r.value;
+                }
+                
+                var someCellOccupied = reduceNeighbors(function (i, j) {
+                    var cellOccupied = cells[i][j];
+                    return { end: cellOccupied, value: cellOccupied };
+                });
+                if (someCellOccupied)
+                    return;
+                reduceNeighbors(function (i, j) {
+                    cells[i][j] = 2;
+                });
+                
                 var previous = dijkstra(this.goal);
                 if (previous[this.origin.x][this.origin.y]) {
                     this.previous = previous;
                     backgroundImage = renderBackground();
                     return true;
                 } else {
-                    cells[x][y] = 0;
+                    reduceNeighbors(function (i, j) {
+                        cells[i][j] = 0;
+                    });
                     return false;
                 }
             };
             
             this.translate = function (p) {
                 return {
-                    x: (p.x - fieldOffset.x) / BLOCK_SIZE | 0, 
-                    y: (p.y - fieldOffset.y) / BLOCK_SIZE | 0
+                    x: Math.round((p.x - fieldOffset.x) / BLOCK_SIZE - 1),
+                    y: Math.round((p.y - fieldOffset.y) / BLOCK_SIZE - 1)
                 };
             };
 
@@ -331,7 +354,7 @@
             var position = Vector.copy(p);
             var speed = s;
             var currentCell = Vector.round(Vector.copy(position));
-            var life = 5 + level * level;
+            var life = 5 + 2 * level * level;
 
             // Renders the creep.
             this.render = function(gc) {
@@ -468,16 +491,14 @@
             // Tries to find a target, aim and shoot.
             this.step = function() {
                 if (!fireCounter) {
-                    var target = creepsManager.getCreepAtDistance(position,
-                            BULLET_RANGE);
+                    var target = creepsManager.getCreepAtDistance(position, BULLET_RANGE);
                     if (!target)
                         return;
                     var distance = Vector.subFrom(position, Vector.copy(target.getPosition()));
                     var offset = Vector.scale(Vector.copy(target.getSpeed()), Vector.norm(distance) / BULLET_SPEED);
                     Vector.addTo(offset, distance);
                     Vector.scale(distance, BULLET_SPEED / Vector.norm(distance));
-                    createBullet(Vector.copy(position), distance,
-                            BULLET_DURATION);
+                    createBullet(Vector.copy(position), distance, BULLET_DURATION);
                     fireCounter = fireDelay;
                 } else {
                     fireCounter--;
@@ -494,9 +515,12 @@
             this.step = function() {
                 var click;
                 while (click = frameController.readMouseClick()) {
+                    var p = field.translate(click);
+                    mousePosition = p;
+                    mousePosition.x = Math.max(2, Math.min(mousePosition.x, FieldSize.width - 5));
+                    mousePosition.y = Math.max(1, Math.min(mousePosition.y, FieldSize.height - 3));
                     if (money < 45)
                         continue;
-                    var p = field.translate(click);
                     if (field.putTower(p.x, p.y)) {
                         frameController.addActionObject(new Tower(p, bulletsManager.createBullet));
                         money -= 45;
@@ -511,6 +535,10 @@
                 gc.save();
                 gc.translate(fieldOffset.x, fieldOffset.y);
                 gc.scale(BLOCK_SIZE, BLOCK_SIZE);
+                if (mousePosition) {
+                    gc.fillStyle = "rgba(129, 255, 129, 0.2)";
+                    gc.fillRect(mousePosition.x, mousePosition.y, 2, 2);
+                }
                 gc.translate(0.5, 0.5);
             }
         });
@@ -570,6 +598,7 @@
                 document.getElementById("Highscore").innerHTML = score;
             }
             document.getElementById("Score").innerHTML = score;
+            document.getElementById("Scores").style = "";
             gameMenu.style.zIndex = "";
             gameMenu.classList.toggle("transparent");
         });

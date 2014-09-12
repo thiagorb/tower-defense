@@ -27,7 +27,7 @@ canvas {
     left: 0px;
     top: 30px;
     width: 800px;
-    height: 550px;
+    height: 575px;
 }
 
 #GameOverlay {
@@ -42,7 +42,7 @@ canvas {
     left: 0px;
     top: 0px;
     width: 800px;
-    height: 650px;
+    height: 675px;
     text-align: center;
     transition: opacity 2s;
 }
