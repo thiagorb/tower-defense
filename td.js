@@ -1,4 +1,5 @@
 (function() {
+    var highscore = 0;
     var STEPS_PER_SECOND = 180;
 
     // Creates a matrix with the given number of columns and rows, 
@@ -15,19 +16,23 @@
     }
 
     var canvas = document.getElementById("GameView");
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
 
     var Game = function() {
+        var score = 0;
         var money = 200;
-        var lives = 100;
+        var lives = 2;
         var frameController = new FrameController(canvas, STEPS_PER_SECOND, 60);
         var FieldSize = {
-            width : 12,
-            height : 9
+            width : 19,
+            height : 11
         };
-        var BLOCK_SIZE = 60;
+        var BLOCK_SIZE = 50;
         var CREEP_RADIUS = 0.09;
+        var fieldOffset = { x: -BLOCK_SIZE, y: 0 };
+        var overListeners = [];
+        var game = this;
 
         // Represents the field where the game happens.
         var Field = function(width, height) {
@@ -149,7 +154,7 @@
 
             // Draws the pre-rendered field.
             this.render = function(gc) {
-                gc.putImageData(backgroundImage, 0, 0);
+                gc.putImageData(backgroundImage, fieldOffset.x, fieldOffset.y);
             };
 
             this.origin = {
@@ -178,6 +183,13 @@
                     return false;
                 }
             };
+            
+            this.translate = function (p) {
+                return {
+                    x: (p.x - fieldOffset.x) / BLOCK_SIZE | 0, 
+                    y: (p.y - fieldOffset.y) / BLOCK_SIZE | 0
+                };
+            };
 
             // Returns true if a creep should be able to walk in the given position.
             this.creepCanWalk = function(p) {
@@ -195,6 +207,7 @@
         var CreepsManager = function(origin) {
             var creeps = [];
             var summoning = false;
+            var level = 0;
             var creepsToSummon = 30;
             var summonCounter = 0;
             var summonDelay = STEPS_PER_SECOND / 2;
@@ -270,8 +283,12 @@
                     if (creeps[i].foundGoal()) {
                         lives -= 1;
                         creeps.splice(i, 1);
+                        if (!lives) {
+                            game.over();
+                        }
                     } else if (creeps[i].isDead()) {
                         money += 5;
+                        score += 5;
                         creeps.splice(i, 1);
                     }
                 }
@@ -279,41 +296,42 @@
 
             // Starts summoning the creeps.
             this.startSummoning = function() {
+                if (summoning) return;
                 summoning = true;
                 creepsToSummon = 30;
+                level++;
             };
 
             // Summons one creep;
             this.summon = function() {
-                var creep = new Creep(origin, {
-                    x : 1 / STEPS_PER_SECOND,
-                    y : (0.5 - Math.random() * 1) / STEPS_PER_SECOND
-                });
+                var creep = new Creep(
+                    origin, 
+                    {
+                        x : 1 / STEPS_PER_SECOND,
+                        y : (0.5 - Math.random() * 1) / STEPS_PER_SECOND
+                    },
+                    level);
                 creeps.push(creep);
             };
 
             // Renders all the creeps at once.
             this.render = function(gc) {
-                gc.save();
-                gc.scale(BLOCK_SIZE, BLOCK_SIZE);
-                gc.translate(0.5, 0.5);
                 gc.fillStyle = "#0F0";
                 creeps.forEach(function(creep) {
                     creep.render(gc);
                 });
-                gc.restore();
             };
         };
 
         // Represents one creep.
-        var Creep = function(p, s) {
+        var Creep = function(p, s, level) {
             var creepAcceleration = 0.01 / STEPS_PER_SECOND;
             var deceleration = creepAcceleration * 0.2;
             var maxSpeed = 0.8 / STEPS_PER_SECOND;
             var position = Vector.copy(p);
             var speed = s;
             var currentCell = Vector.round(Vector.copy(position));
-            var life = 5;
+            var life = 5 + level * level;
 
             // Renders the creep.
             this.render = function(gc) {
@@ -431,15 +449,11 @@
 
             // Renders all the bullets at once.
             this.render = function(gc) {
-                gc.save();
-                gc.scale(BLOCK_SIZE, BLOCK_SIZE);
-                gc.translate(0.5, 0.5);
                 gc.fillStyle = "white";
                 bullets.forEach(function(bullet) {
                     gc.fillRect(bullet.position.x, bullet.position.y, 0.025,
                             0.025);
                 });
-                gc.restore();
             };
         };
 
@@ -471,46 +485,67 @@
             };
         };
 
-        frameController.addRenderObject(field);
-
         var creepsManager = new CreepsManager(field.origin);
-        frameController.addActionObject(creepsManager);
-        frameController.addRenderObject(creepsManager);
-
         var bulletsManager = new BulletsManager();
+        
+        frameController.addActionObject(creepsManager);
         frameController.addActionObject(bulletsManager);
-        frameController.addRenderObject(bulletsManager);
-
         frameController.addActionObject(new function() {
             this.step = function() {
                 var click;
                 while (click = frameController.readMouseClick()) {
                     if (money < 45)
                         continue;
-                    var x = (click.x / BLOCK_SIZE) | 0;
-                    var y = (click.y / BLOCK_SIZE) | 0;
-                    if (field.putTower(x, y)) {
-                        frameController.addActionObject(new Tower({
-                            x : x,
-                            y : y
-                        }, bulletsManager.createBullet));
+                    var p = field.translate(click);
+                    if (field.putTower(p.x, p.y)) {
+                        frameController.addActionObject(new Tower(p, bulletsManager.createBullet));
                         money -= 45;
                     }
                 }
             };
         });
 
+        frameController.addRenderObject(field);
+        frameController.addRenderObject({
+            render: function (gc) {
+                gc.save();
+                gc.translate(fieldOffset.x, fieldOffset.y);
+                gc.scale(BLOCK_SIZE, BLOCK_SIZE);
+                gc.translate(0.5, 0.5);
+            }
+        });
+        frameController.addRenderObject(creepsManager);
+        frameController.addRenderObject(bulletsManager);
+        frameController.addRenderObject({
+            render: function (gc) {
+                gc.restore();
+            }
+        });
+        
         frameController.addRenderObject(new function() {
             this.render = function(gc) {
                 gc.save();
                 gc.fillStyle = "white";
-                gc.translate(600, 50);
-                gc.scale(5, 5);
-                gc.fillText(money, 0, 0);
-                gc.fillText(lives, 0, 10);
+                gc.translate(790, 15);
+                gc.textAlign = "right";
+                gc.scale(1, 1);
+                gc.fillText("Score: " + score, 0, 0);
+                gc.fillText("Money: " + money, 0, 10);
+                gc.fillText("Lives: " + lives, 0, 20);
                 gc.restore();
             };
         });
+        
+        this.over = function () {
+            frameController.stop();
+            overListeners.forEach(function (listener) {
+                listener(score);
+            });
+        };
+        
+        this.addOverListener = function (listener) {
+            overListeners.push(listener);
+        };
 
         frameController.start();
         this.creepsManager = creepsManager;
@@ -521,14 +556,23 @@
         game.creepsManager.startSummoning();
     });
     
-    var btnNewGame = document.getElementById("btnNewGame");
-    btnNewGame.addEventListener("click", function (e) {
+    document.getElementById("btnNewGame").addEventListener("click", function (e) {
+        var gameMenu = document.getElementById("GameMenu");
         e.preventDefault();
-        document.getElementById("GameMenu").style.opacity = 0;
+        gameMenu.classList.toggle("transparent");
         setTimeout(function () {
-            document.getElementById("GameMenu").style.display = "none";
+            gameMenu.style.zIndex = -2;
         }, 2000);
         game = new Game();
+        game.addOverListener(function (score) {
+            if (highscore < score) {
+                highscore = score;
+                document.getElementById("Highscore").innerHTML = score;
+            }
+            document.getElementById("Score").innerHTML = score;
+            gameMenu.style.zIndex = "";
+            gameMenu.classList.toggle("transparent");
+        });
         return false;
     });
 })();
