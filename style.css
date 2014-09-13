@@ -1,6 +1,7 @@
 body {
     font-family: arial;
     color: white; 
+    text-align: center;
 }
 
 .button {
@@ -25,14 +26,9 @@ canvas {
     background-color: black;
     z-index: -1;
     left: 0px;
-    top: 30px;
+    top: 0px;
     width: 800px;
-    height: 575px;
-}
-
-#GameOverlay {
-    width: 800px;
-    height: 30px;
+    height: 615px;
 }
 
 #GameMenu {
@@ -42,7 +38,7 @@ canvas {
     left: 0px;
     top: 0px;
     width: 800px;
-    height: 675px;
+    height: 615px;
     text-align: center;
     transition: opacity 2s;
 }

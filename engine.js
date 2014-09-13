@@ -62,9 +62,17 @@ function FrameController(canvas, sps, fps) {
         return keyMap[keyCode];
     };
 
-    // Returns true if the mouse button with the given button code is pressed.
-    this.readMouseClick = function () {
-        return mouseClicks.shift();
+    // Returns the first mouse click event. 
+    // If a rect is given, only events inside the rect will be considered.
+    this.readMouseClick = function (rect) {
+        if (!rect) return mouseClicks.shift();
+        for (var i = 0; i < mouseClicks.length; i++) {
+            var e = mouseClicks[i];
+            if (e.x >= rect.x + rect.width || e.y >= rect.y + rect.height || e.x < rect.x || e.y < rect.y)
+                continue;
+            mouseClicks.splice(i, 1);
+            return e;
+        }
     };
 
     // This method is invoked before rendering the first frame, 
